@@ -77,6 +77,16 @@ kalloc(void)
   release(&kmem.lock);
 
   if(r)
-    memset((char*)r, 5, PGSIZE); // fill with junk
+    memset  ((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;
+}
+
+int freememory(void){
+    struct run* p = kmem.freelist;
+    uint64 num = 0;
+    while (p) {
+        num ++;
+        p = p->next;
+    }
+    return num * PGSIZE;
 }
