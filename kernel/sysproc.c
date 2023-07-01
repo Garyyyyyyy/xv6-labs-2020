@@ -59,9 +59,9 @@ sys_sleep(void)
   int n;
   uint ticks0;
 
-
   if(argint(0, &n) < 0)
     return -1;
+  backtrace();
   acquire(&tickslock);
   ticks0 = ticks;
   while(ticks - ticks0 < n){
@@ -81,6 +81,12 @@ int
 sys_pgaccess(void)
 {
   // lab pgtbl: your code here.
+  uint64 va,abits;
+  int pagenum;
+  if(argaddr(0,&va)<0) return -1;
+  if(argint(1,&pagenum)<0) return -1;
+  if(argaddr(2,&abits)<0) return -1;
+  pgaccess(va,pagenum,abits);
   return 0;
 }
 #endif
