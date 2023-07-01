@@ -10,7 +10,6 @@ struct spinlock tickslock;
 uint ticks;
 
 extern char trampoline[], uservec[], userret[];
-
 // in kernelvec.S, calls kerneltrap().
 void kernelvec();
 
@@ -76,10 +75,36 @@ usertrap(void)
   if(p->killed)
     exit(-1);
 
-  // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
-    yield();
 
+//    if(which_dev == 2) {
+//        if(p->alarminterval != 0) { // 如果设定了时钟事件
+//            p->tickspassed+=1;
+//            if(p->tickspassed >= p->alarminterval) { // 时钟倒计时 -1 tick，如果已经到达或超过设定的 tick 数
+//                if(!p->alarmwk) { // 确保没有时钟正在运行
+//                    p->tickspassed = 0;
+//                    // jump to execute alarm_handler
+//                    *p->alarmtrapframe = *p->trapframe; // backup trapframe
+//                    p->trapframe->epc = p->alarmfnpoint;
+//                    p->alarmwk = 1;
+//                }
+//                // 如果一个时钟到期的时候已经有一个时钟处理函数正在运行，则会推迟到原处理函数运行完成后的下一个 tick 才触发这次时钟
+//            }
+//        }
+//        yield();
+//    }
+  // give up the CPU if this is a timer interrupt.
+  if(which_dev == 2){
+    if(p->alarminterval!=0&&p->alarmwk!=1){
+        p->tickspassed+=1;
+        if(p->alarminterval<=p->tickspassed){
+            p->alarmwk=1;
+            *p->alarmtrapframe=*p->trapframe;
+            p->trapframe->epc=p->alarmfnpoint;
+            p->tickspassed=0;
+        }
+    }
+    yield();
+  }
   usertrapret();
 }
 

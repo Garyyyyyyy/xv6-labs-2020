@@ -60,6 +60,7 @@ sys_sleep(void)
 
   if(argint(0, &n) < 0)
     return -1;
+  backtrace();
   acquire(&tickslock);
   ticks0 = ticks;
   while(ticks - ticks0 < n){
@@ -94,4 +95,26 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+//lab traps , change process's ticks and handle for alarm
+uint64
+sys_sigalarm(void){
+    int picks;
+    uint64 handle;
+    if(argint(0, &picks) < 0)
+        return -1;
+    if(argaddr(1, &handle) < 0)
+        return -1;
+    myproc()->alarminterval=picks;
+    myproc()->alarmfnpoint=handle;
+    myproc()->tickspassed=0;
+    return 0;
+}
+
+uint64
+sys_sigreturn(void){
+    *myproc()->trapframe=*myproc()->alarmtrapframe;
+    myproc()->alarmwk=0;
+    return 0;
 }
