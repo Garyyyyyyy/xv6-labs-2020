@@ -65,6 +65,13 @@ usertrap(void)
     intr_on();
 
     syscall();
+  } else if(r_scause() == 15) { //page fault and stval store the address cant translate
+    if(r_stval()<PGSIZE) {
+        p->killed = 1;
+    }
+    if(cowhandle(p->pagetable,r_stval()) < 0){
+        p->killed = 1;
+    }
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {
