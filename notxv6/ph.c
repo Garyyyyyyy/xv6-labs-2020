@@ -16,7 +16,16 @@ struct entry {
 struct entry *table[NBUCKET];
 int keys[NKEYS];
 int nthread = 1;
+pthread_mutex_t table_mutex[NBUCKET];
 
+void mutex_init(){
+   for(int i=0;i<NBUCKET;i++)
+    pthread_mutex_init(&table_mutex[i],NULL);
+}
+//pthread_mutex_t 锁；// 声明一个锁
+//pthread_mutex_init(&lock, NULL); // 初始化锁
+//pthread_mutex_lock(&lock); // 获取锁
+//pthread_mutex_unlock(&lock); // 释放锁
 
 double
 now()
@@ -51,8 +60,10 @@ void put(int key, int value)
     // update the existing key.
     e->value = value;
   } else {
+      pthread_mutex_lock(&table_mutex[i]);
     // the new is new.
     insert(key, value, &table[i], table[i]);
+      pthread_mutex_unlock(&table_mutex[i]);
   }
 
 }
@@ -101,6 +112,7 @@ get_thread(void *xa)
 int
 main(int argc, char *argv[])
 {
+  mutex_init();
   pthread_t *tha;
   void *value;
   double t1, t0;
