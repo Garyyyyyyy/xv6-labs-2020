@@ -1,4 +1,5 @@
-//
+
+int             symlink(const char*, const char*);//
 // Support functions for system calls that involve file descriptors.
 //
 
