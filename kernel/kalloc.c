@@ -10,6 +10,7 @@
 #include "defs.h"
 
 void freerange(void *pa_start, void *pa_end);
+void* steal(int id);
 
 extern char end[]; // first address after kernel.
                    // defined by kernel.ld.
@@ -21,12 +22,15 @@ struct run {
 struct {
   struct spinlock lock;
   struct run *freelist;
-} kmem;
+} kmem[NCPU];
 
+int kinitcnt,kinitflag;
 void
 kinit()
 {
-  initlock(&kmem.lock, "kmem");
+    kinitcnt = 0;
+  for(int i=0;i<NCPU;i++)
+    initlock(&kmem[i].lock, "kmem");
   freerange(end, (void*)PHYSTOP);
 }
 
@@ -37,6 +41,8 @@ freerange(void *pa_start, void *pa_end)
   p = (char*)PGROUNDUP((uint64)pa_start);
   for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE)
     kfree(p);
+  __sync_synchronize();
+  kinitflag=1;
 }
 
 // Free the page of physical memory pointed at by v,
@@ -56,10 +62,17 @@ kfree(void *pa)
 
   r = (struct run*)pa;
 
-  acquire(&kmem.lock);
-  r->next = kmem.freelist;
-  kmem.freelist = r;
-  release(&kmem.lock);
+  int id;
+  if(kinitflag) {
+      push_off();
+      id = cpuid();
+      pop_off();
+  }
+  else id = kinitcnt++ % NCPU;
+  acquire(&kmem[id].lock);
+  r->next = kmem[id].freelist;
+  kmem[id].freelist = r;
+  release(&kmem[id].lock);
 }
 
 // Allocate one 4096-byte page of physical memory.
@@ -70,13 +83,38 @@ kalloc(void)
 {
   struct run *r;
 
-  acquire(&kmem.lock);
-  r = kmem.freelist;
+  push_off();
+  int id = cpuid();
+  pop_off();
+
+  acquire(&kmem[id].lock);
+  r = kmem[id].freelist;
+
   if(r)
-    kmem.freelist = r->next;
-  release(&kmem.lock);
+    kmem[id].freelist = r->next;
+  release(&kmem[id].lock);
 
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
-  return (void*)r;
+
+  for (int i = 0; i < NCPU && !r; i++)
+      if (i != id) r = steal(i);
+
+    return (void*)r;
+}
+
+void *
+steal(int id)
+{
+    struct run *r;
+    acquire(&kmem[id].lock);
+    r = kmem[id].freelist;
+
+    if(r)
+        kmem[id].freelist = r->next;
+    release(&kmem[id].lock);
+
+    if(r)
+        memset((char*)r, 5, PGSIZE); // fill with junk
+    return (void*)r;
 }
