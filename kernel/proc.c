@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "fcntl.h"
 
 struct cpu cpus[NCPU];
 
@@ -301,6 +302,18 @@ fork(void)
       np->ofile[i] = filedup(p->ofile[i]);
   np->cwd = idup(p->cwd);
 
+  for(i = 0;i < NVMA; i++){
+      if(p->vmas[i].valid == 1){
+          np->vmas[i].valid = p->vmas[i].valid;
+          np->vmas[i].addr = p->vmas[i].addr;
+          np->vmas[i].length = p->vmas[i].length;
+          np->vmas[i].prot = p->vmas[i].prot;
+          np->vmas[i].flags = p->vmas[i].flags;
+          np->vmas[i].mmapfile = p->vmas[i].mmapfile;
+          filedup(p->vmas[i].mmapfile);
+      }
+  }
+
   safestrcpy(np->name, p->name, sizeof(p->name));
 
   pid = np->pid;
@@ -351,6 +364,22 @@ exit(int status)
       fileclose(f);
       p->ofile[fd] = 0;
     }
+  }
+
+  //Close all vma
+
+  for(int i = 0;i< NVMA;i++){
+      if(p->vmas[i].valid == 1){
+
+          struct vma *vmap = &p->vmas[i];
+          if (vmap->flags & MAP_SHARED) {
+              filewrite(vmap->mmapfile, p->vmas[i].addr, p->vmas[i].length);
+          }
+
+          uvmunmap(p->pagetable, p->vmas[i].addr, p->vmas[i].length/PGSIZE, 1);
+          fileclose(p->vmas[i].mmapfile);
+          p->vmas[i].valid = 0;
+      }
   }
 
   begin_op();
